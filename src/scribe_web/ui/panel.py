@@ -169,7 +169,7 @@ class Panel:
         status = self.controller.get_status()
         project_name = status["project_name"] or "-"
         pause_text = "ON" if status["paused"] else "OFF"
-        status_text = f"SESJA: {project_name}  KROKI: {status['steps']}  PAUZA: {pause_text}"
+        status_text = f"SESJA:{project_name}  KROKI:{status['steps']}  PAUZA:{pause_text}"
         self.status_label.configure(text=status_text)
 
     def _update_pause_style(self, paused: bool) -> None:
@@ -186,10 +186,10 @@ class Panel:
                 activebackground=COLOR_AMBER,
             )
 
-    def _flash_button(self, button: tk.Button, *, restore_relief: str = "raised") -> None:
+    def flash_button(self, button: tk.Button) -> None:
         button.configure(relief="sunken")
         self.root.bell()
-        self.root.after(120, lambda: button.configure(relief=restore_relief))
+        self.root.after(120, lambda: button.configure(relief="raised"))
 
     def _start_drag(self, event: tk.Event) -> None:
         self._drag_offset_x = event.x_root - self.root.winfo_x()
@@ -207,46 +207,45 @@ class Panel:
         self.controller.start_session(project_name)
         self._update_pause_style(False)
         self._set_session_active(True)
-        self._flash_button(self.button_start)
+        self.flash_button(self.button_start)
         self._update_status_label()
 
     def _on_step(self) -> None:
         self.controller.add_step_stub()
-        self._flash_button(self.button_step)
+        self.flash_button(self.button_step)
         self._update_status_label()
 
     def _on_edit(self) -> None:
         messagebox.showinfo("SCRIBE", "STUB: edycja screena w Etap 4")
-        self._flash_button(self.button_edit)
+        self.flash_button(self.button_edit)
         self._update_status_label()
 
     def _on_voice(self) -> None:
         messagebox.showinfo("SCRIBE", "STUB: audio+transkrypcja w Etap 5")
-        self._flash_button(self.button_voice)
+        self.flash_button(self.button_voice)
         self._update_status_label()
 
     def _on_probe(self) -> None:
         messagebox.showinfo("SCRIBE", "STUB: probe WWW w Etap 6")
-        self._flash_button(self.button_probe)
+        self.flash_button(self.button_probe)
         self._update_status_label()
 
     def _on_pause(self) -> None:
         paused = self.controller.toggle_pause()
-        restore_relief = "sunken" if paused else "raised"
-        self._flash_button(self.button_pause, restore_relief=restore_relief)
-        self._update_pause_style(paused)
+        self.flash_button(self.button_pause)
         self._update_status_label()
+        self.root.after(130, lambda: self._update_pause_style(paused))
 
     def _on_undo(self) -> None:
         self.controller.undo_last_step()
-        self._flash_button(self.button_undo)
+        self.flash_button(self.button_undo)
         self._update_status_label()
 
     def _on_end(self) -> None:
         session_dir = self.controller.end_session()
         if session_dir is not None:
             messagebox.showinfo("SCRIBE", f"Sesja zakończona: {session_dir}")
-        self._flash_button(self.button_end)
+        self.flash_button(self.button_end)
         self._set_session_active(False)
         self.root.destroy()
 
