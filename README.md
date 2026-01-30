@@ -29,3 +29,8 @@ Uruchom:
 ```bash
 python3 -m scribe_web --panel
 ```
+
+## Uruchamianie bez Terminala (macOS)
+
+- Dwuklik: `tools/macos/RUN_PANEL.command`
+- Instalacja .app: `tools/macos/INSTALL_PANEL_APP.command` (dwuklik), potem Launchpad
