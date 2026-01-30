@@ -1,0 +1,10 @@
+{
+  "sessions_root": "sessions",
+  "logs_root": "logs",
+  "default_project_slug": "nowa_sesja",
+  "timezone": "Europe/Warsaw",
+  "privacy": {
+    "mask_password_fields": true,
+    "redact_query_params": true
+  }
+}

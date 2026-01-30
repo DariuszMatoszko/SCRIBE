@@ -1,0 +1,2 @@
+# Etap 1: brak zależności zewnętrznych
+# Etap 2+: mss, pynput, sounddevice, whisper/vosk, itp.
