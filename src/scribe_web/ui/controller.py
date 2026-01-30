@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 from scribe_web.core.payload_v1 import build_step
 from scribe_web.core.session import SessionContext, add_step, create_session
+from scribe_web.core.logging_setup import setup_logging
+from scribe_web.core.paths import ensure_dirs, logs_root
 from scribe_web.core.utils import atomic_write_json
 
 
@@ -15,16 +16,15 @@ class Controller:
         self.next_step_id = 1
         self.paused = False
         self.project_name: str | None = None
-        self.logger = logging.getLogger(__name__)
+        logs_dir = logs_root(config)
+        ensure_dirs([logs_dir])
+        self.logger = setup_logging(logs_dir / "scribe_web.log")
 
     def get_status(self) -> dict:
-        steps = 0
-        if self.ctx is not None:
-            steps = len(self.ctx.payload.get("steps", []))
         return {
-            "project_name": self.project_name,
-            "steps": steps,
-            "paused": self.paused if self.ctx is not None else False,
+            "project_name": self.ctx.project_name if self.ctx else None,
+            "steps": len(self.ctx.payload["steps"]) if self.ctx else 0,
+            "paused": self.paused,
         }
 
     def start_session(self, project_name: str) -> Path:
@@ -53,7 +53,7 @@ class Controller:
         if self.ctx is None:
             self.logger.info("UNDO step: ok=False steps=0")
             return False
-        steps = self.ctx.payload.get("steps", [])
+        steps = self.ctx.payload["steps"]
         if not steps:
             self.logger.info("UNDO step: ok=False steps=0")
             return False
@@ -69,4 +69,5 @@ class Controller:
         session_dir = self.ctx.session_dir
         self.ctx = None
         self.project_name = None
+        self.paused = False
         return session_dir
