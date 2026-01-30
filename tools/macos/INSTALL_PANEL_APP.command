@@ -31,7 +31,7 @@ cat > "$APP_PATH/Contents/MacOS/applet" <<EOF
 #!/bin/bash
 cd "$ROOT"
 mkdir -p logs
-/usr/bin/python3 -m scribe_web --panel >> logs/launch_panel.log 2>&1
+exec /usr/bin/env python3 -m scribe_web --panel >> logs/launch_panel.log 2>&1
 EOF
 
 chmod +x "$APP_PATH/Contents/MacOS/applet"
