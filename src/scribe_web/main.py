@@ -40,8 +40,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="SCRIBE_WEB CLI")
     parser.add_argument("--smoke", action="store_true", help="Run smoke test")
     parser.add_argument("--demo", action="store_true", help="Create demo session with sample steps")
+    parser.add_argument("--panel", action="store_true", help="Run always-on-top control panel")
     args = parser.parse_args()
 
+    if args.panel:
+        config_path = repo_root() / DEFAULT_CONFIG_PATH
+        config = load_config(config_path)
+        from scribe_web.ui.panel import run_panel
+
+        run_panel(config)
+        return
     if args.smoke:
         payload_path = run_smoke_test()
         print("OK: smoke test complete")
