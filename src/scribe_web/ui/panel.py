@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 
 from .controller import Controller
 
@@ -20,7 +20,7 @@ class CanvasButton(tk.Frame):
     - pełna kontrola wyglądu (bez macOS-owych „humorów” tk.Button)
     - tryb momentary (flash) oraz toggle (stały stan pressed)
     """
-    def __init__(self, master, text, command=None, toggle=False, width=58, height=58):
+    def __init__(self, master, text, command=None, toggle=False, width=46, height=46):
         super().__init__(master, bg=PANEL_BG, highlightthickness=0, bd=0)
         self.command = command
         self.toggle = toggle
@@ -41,7 +41,7 @@ class CanvasButton(tk.Frame):
         self.c.pack()
 
         # prostokąt + tekst
-        pad = 4
+        pad = 3
         self.rect = self.c.create_rectangle(
             pad, pad, self.w - pad, self.h - pad,
             fill=BTN_BG, outline=BTN_BORDER, width=2
@@ -89,9 +89,9 @@ class CanvasButton(tk.Frame):
         if not self.enabled:
             return
 
+        self.winfo_toplevel().bell()
         # zawsze flash, żeby było „pstryk”
         self.flash()
-        self.winfo_toplevel().bell()
 
         if self.toggle:
             # toggle: zmień stan na stałe
@@ -167,15 +167,69 @@ class PanelApp:
 
     def _place_buttons(self):
         # 2x4
-        self.btnS.grid(row=0, column=0, padx=4, pady=4)
-        self.btnK.grid(row=0, column=1, padx=4, pady=4)
-        self.btnE.grid(row=0, column=2, padx=4, pady=4)
-        self.btnG.grid(row=0, column=3, padx=4, pady=4)
+        self.btnS.grid(row=0, column=0, padx=2, pady=2)
+        self.btnK.grid(row=0, column=1, padx=2, pady=2)
+        self.btnE.grid(row=0, column=2, padx=2, pady=2)
+        self.btnG.grid(row=0, column=3, padx=2, pady=2)
 
-        self.btnP.grid(row=1, column=0, padx=4, pady=4)
-        self.btnPause.grid(row=1, column=1, padx=4, pady=4)
-        self.btnUndo.grid(row=1, column=2, padx=4, pady=4)
-        self.btnZ.grid(row=1, column=3, padx=4, pady=4)
+        self.btnP.grid(row=1, column=0, padx=2, pady=2)
+        self.btnPause.grid(row=1, column=1, padx=2, pady=2)
+        self.btnUndo.grid(row=1, column=2, padx=2, pady=2)
+        self.btnZ.grid(row=1, column=3, padx=2, pady=2)
+
+    def _ask_project_name(self) -> str | None:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("SCRIBE")
+        dialog.configure(bg=PANEL_BG)
+        dialog.resizable(False, False)
+        dialog.attributes("-topmost", True)
+
+        result = {"value": None}
+
+        label = tk.Label(
+            dialog,
+            text="Nazwa projektu:",
+            bg=PANEL_BG,
+            fg=BTN_FG,
+            font=("Helvetica", 11, "bold")
+        )
+        label.grid(row=0, column=0, columnspan=2, padx=10, pady=(10, 6), sticky="w")
+
+        entry = tk.Entry(dialog, width=24)
+        entry.grid(row=1, column=0, columnspan=2, padx=10, pady=(0, 10), sticky="ew")
+
+        def on_ok(_event=None):
+            result["value"] = entry.get().strip()
+            dialog.destroy()
+
+        def on_cancel(_event=None):
+            result["value"] = None
+            dialog.destroy()
+
+        btn_ok = tk.Button(dialog, text="OK", command=on_ok, width=8)
+        btn_cancel = tk.Button(dialog, text="Cancel", command=on_cancel, width=8)
+        btn_ok.grid(row=2, column=0, padx=(10, 5), pady=(0, 10), sticky="e")
+        btn_cancel.grid(row=2, column=1, padx=(5, 10), pady=(0, 10), sticky="w")
+
+        dialog.grid_columnconfigure(0, weight=1)
+        dialog.grid_columnconfigure(1, weight=1)
+
+        dialog.bind("<Return>", on_ok)
+        dialog.bind("<Escape>", on_cancel)
+        dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+
+        dialog.update_idletasks()
+        dialog_height = dialog.winfo_height()
+        x = self.root.winfo_x()
+        y = self.root.winfo_y() - dialog_height - 10
+        if y < 20:
+            y = self.root.winfo_y() + self.root.winfo_height() + 10
+        dialog.geometry(f"+{x}+{y}")
+
+        entry.focus_set()
+        dialog.grab_set()
+        dialog.wait_window()
+        return result["value"]
 
     def _set_controls_started(self, started: bool):
         # S: enabled zawsze, ale po starcie blokujemy (żeby nie robić 2 sesji)
@@ -214,7 +268,7 @@ class PanelApp:
 
     # Handlery
     def on_start(self):
-        name = simpledialog.askstring("SCRIBE", "Nazwa projektu:", parent=self.root)
+        name = self._ask_project_name()
         if name is None:
             # cancel -> nic
             self.btnS.set_pressed(False)
@@ -235,18 +289,27 @@ class PanelApp:
         # STUB – etap 4
         self.controller.last_action = "E"
         self._refresh_status()
+        self.root.after(10, self._show_edit_stub)
+
+    def _show_edit_stub(self):
         messagebox.showinfo("SCRIBE", "STUB: edycja screena w Etap 4")
 
     def on_voice(self):
         # STUB – etap 5
         self.controller.last_action = "G"
         self._refresh_status()
+        self.root.after(10, self._show_voice_stub)
+
+    def _show_voice_stub(self):
         messagebox.showinfo("SCRIBE", "STUB: audio+transkrypcja w Etap 5")
 
     def on_probe(self):
         # STUB – etap 6
         self.controller.last_action = "P"
         self._refresh_status()
+        self.root.after(10, self._show_probe_stub)
+
+    def _show_probe_stub(self):
         messagebox.showinfo("SCRIBE", "STUB: probe WWW w Etap 6")
 
     def on_pause(self):
@@ -260,6 +323,9 @@ class PanelApp:
         self._refresh_status()
 
     def on_end(self):
+        self.root.after(10, self._end_after_flash)
+
+    def _end_after_flash(self):
         sd = self.controller.end_session()
         if sd:
             messagebox.showinfo("SCRIBE", f"Zapisano sesję:\n{sd}")
