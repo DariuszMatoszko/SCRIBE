@@ -16,6 +16,7 @@ class Controller:
         self.next_step_id = 1
         self.paused = False
         self.project_name: str | None = None
+        self.last_action: str | None = None
         logs_dir = logs_root(config)
         ensure_dirs([logs_dir])
         self.logger = setup_logging(logs_dir / "scribe_web.log")
@@ -25,6 +26,7 @@ class Controller:
             "project_name": self.ctx.project_name if self.ctx else None,
             "steps": len(self.ctx.payload["steps"]) if self.ctx else 0,
             "paused": self.paused,
+            "last_action": self.last_action,
         }
 
     def start_session(self, project_name: str) -> Path:
@@ -32,6 +34,7 @@ class Controller:
         self.next_step_id = 1
         self.paused = False
         self.project_name = project_name
+        self.last_action = "S"
         self.logger.info("START session: %s", project_name)
         return self.ctx.session_dir
 
@@ -42,10 +45,12 @@ class Controller:
         step["privacy"]["paused"] = self.paused
         add_step(self.ctx, step)
         self.next_step_id += 1
+        self.last_action = "K"
         self.logger.info("ADD step: %s paused=%s", step["id"], self.paused)
 
     def toggle_pause(self) -> bool:
         self.paused = not self.paused
+        self.last_action = "||"
         self.logger.info("PAUSE toggled: %s", self.paused)
         return self.paused
 
@@ -60,6 +65,7 @@ class Controller:
         steps.pop()
         atomic_write_json(self.ctx.payload_path, self.ctx.payload)
         self.next_step_id = len(steps) + 1
+        self.last_action = "↩"
         self.logger.info("UNDO step: ok=True steps=%s", len(steps))
         return True
 
@@ -70,4 +76,5 @@ class Controller:
         self.ctx = None
         self.project_name = None
         self.paused = False
+        self.last_action = None
         return session_dir
