@@ -1,8 +1,13 @@
+# macOS
+.DS_Store
+
+# Python
 __pycache__/
 *.pyc
 .venv/
 venv/
 
+# Runtime outputs (ignoruj zawartość, ale trzymaj foldery w repo)
 sessions/*
 !sessions/.gitkeep
 
