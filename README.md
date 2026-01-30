@@ -13,3 +13,11 @@ python -m scribe_web --smoke
 Wyniki zapisują się w:
 - `sessions/_smoke_test/ai_payload.json`
 - `logs/scribe_web.log`
+
+## Demo
+
+Uruchom:
+
+```bash
+python3 -m scribe_web --demo
+```
