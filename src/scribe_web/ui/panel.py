@@ -282,17 +282,16 @@ class PanelApp:
         self._refresh_status()
 
     def on_step(self):
-        self.controller.add_step_stub()
+        self.controller.add_step_screenshot()
         self._refresh_status()
 
     def on_edit(self):
-        # STUB – etap 4
-        self.controller.last_action = "E"
+        ok = self.controller.annotate_last_step()
         self._refresh_status()
-        self.root.after(10, self._show_edit_stub)
-
-    def _show_edit_stub(self):
-        messagebox.showinfo("SCRIBE", "STUB: edycja screena w Etap 4")
+        if ok:
+            messagebox.showinfo("SCRIBE", "Zapisano anotację.")
+        else:
+            messagebox.showinfo("SCRIBE", "Brak screena do edycji (najpierw K).")
 
     def on_voice(self):
         # STUB – etap 5
