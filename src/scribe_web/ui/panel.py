@@ -11,14 +11,10 @@ STATUS_FONT = ("Helvetica", 8, "bold")
 DRAG_BAR_HEIGHT = 10
 BUTTON_SIZE = 44
 
-COLOR_BG = "#1b1b1b"
-COLOR_DRAG = "#2c2c2c"
-COLOR_GRAY = "#5f6368"
-COLOR_GREEN = "#2ecc71"
-COLOR_RED = "#e74c3c"
-COLOR_AMBER = "#f0ad4e"
-COLOR_AMBER_ACTIVE = "#ffe08a"
-COLOR_AMBER_FLASH = "#fff3bf"
+PANEL_BG = "#2b2b2b"
+BTN_BG = "#6a6a6a"
+BTN_FG = "#d9d9d9"
+BTN_PRESSED_BG = PANEL_BG
 
 
 def render_status(status: dict) -> str:
@@ -43,7 +39,7 @@ class Panel:
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
         self.root.attributes("-alpha", 0.5)
-        self.root.configure(bg=COLOR_BG)
+        self.root.configure(bg=PANEL_BG)
         self.root.bind("<Escape>", lambda event: self.root.destroy())
 
         self._drag_offset_x = 0
@@ -53,10 +49,10 @@ class Panel:
         self._set_session_active(False)
 
     def _build_ui(self) -> None:
-        container = tk.Frame(self.root, bg=COLOR_BG, bd=1, relief="solid")
+        container = tk.Frame(self.root, bg=PANEL_BG, bd=1, relief="solid")
         container.pack(fill="both", expand=True)
 
-        drag_bar = tk.Frame(container, bg=COLOR_DRAG, height=DRAG_BAR_HEIGHT, cursor="fleur")
+        drag_bar = tk.Frame(container, bg=PANEL_BG, height=DRAG_BAR_HEIGHT, cursor="fleur")
         drag_bar.pack(fill="x")
         drag_bar.bind("<ButtonPress-1>", self._start_drag)
         drag_bar.bind("<B1-Motion>", self._on_drag)
@@ -66,14 +62,15 @@ class Panel:
             text="",
             font=STATUS_FONT,
             fg="white",
-            bg=COLOR_DRAG,
+            bg=PANEL_BG,
             padx=4,
+            anchor="center",
         )
-        self.status_label.pack(side="left")
+        self.status_label.pack(fill="x", expand=True)
         self.status_label.bind("<ButtonPress-1>", self._start_drag)
         self.status_label.bind("<B1-Motion>", self._on_drag)
 
-        grid = tk.Frame(container, bg=COLOR_BG, padx=4, pady=4)
+        grid = tk.Frame(container, bg=PANEL_BG, padx=4, pady=4)
         grid.pack()
 
         for row in range(2):
@@ -84,50 +81,41 @@ class Panel:
         self.button_start = self._make_button(
             grid,
             text="S",
-            color=COLOR_GREEN,
             command=self._on_start,
         )
         self.button_step = self._make_button(
             grid,
             text="K",
-            color=COLOR_GRAY,
             command=self._on_step,
         )
         self.button_edit = self._make_button(
             grid,
             text="E",
-            color=COLOR_GRAY,
             command=self._on_edit,
         )
         self.button_voice = self._make_button(
             grid,
             text="G",
-            color=COLOR_GRAY,
             command=self._on_voice,
         )
         self.button_probe = self._make_button(
             grid,
             text="P",
-            color=COLOR_GRAY,
             command=self._on_probe,
         )
         self.button_pause = self._make_button(
             grid,
             text="||",
-            color=COLOR_AMBER,
             command=self._on_pause,
-            fg="black",
         )
         self.button_undo = self._make_button(
             grid,
             text="↩",
-            color=COLOR_GRAY,
             command=self._on_undo,
         )
         self.button_end = self._make_button(
             grid,
             text="Z",
-            color=COLOR_RED,
             command=self._on_end,
         )
 
@@ -145,6 +133,7 @@ class Panel:
             row = index // 4
             col = index % 4
             button.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
+            self.apply_btn_normal(button)
 
         self._update_status_label()
 
@@ -153,9 +142,7 @@ class Panel:
         parent: tk.Widget,
         *,
         text: str,
-        color: str,
         command: Callable[[], None],
-        fg: str = "white",
     ) -> tk.Button:
         return tk.Button(
             parent,
@@ -163,9 +150,10 @@ class Panel:
             font=BUTTON_FONT,
             width=3,
             height=2,
-            bg=color,
-            fg=fg,
-            activebackground=color,
+            bg=BTN_BG,
+            fg=BTN_FG,
+            activebackground=BTN_BG,
+            activeforeground=BTN_FG,
             relief="raised",
             command=command,
             borderwidth=1,
@@ -185,37 +173,30 @@ class Panel:
         status = self.controller.get_status()
         self.status_label.configure(text=render_status(status))
 
-    def apply_pause_style(self, paused: bool) -> None:
-        if paused:
-            self.button_pause.configure(
-                relief="sunken",
-                bg=COLOR_AMBER_ACTIVE,
-                activebackground=COLOR_AMBER_ACTIVE,
-            )
-        else:
-            self.button_pause.configure(
-                relief="raised",
-                bg=COLOR_AMBER,
-                activebackground=COLOR_AMBER,
-            )
+    def apply_btn_normal(self, button: tk.Button) -> None:
+        button.configure(
+            bg=BTN_BG,
+            fg=BTN_FG,
+            relief="raised",
+            activebackground=BTN_BG,
+            activeforeground=BTN_FG,
+        )
+
+    def apply_btn_pressed(self, button: tk.Button) -> None:
+        button.configure(
+            bg=BTN_PRESSED_BG,
+            fg=BTN_FG,
+            relief="sunken",
+            activebackground=BTN_PRESSED_BG,
+            activeforeground=BTN_FG,
+        )
 
     def flash_button(self, button: tk.Button) -> None:
-        original_bg = button.cget("bg")
-        original_active_bg = button.cget("activebackground")
-        original_relief = button.cget("relief")
-        flash_bg = COLOR_AMBER_FLASH if button is self.button_pause else original_bg
-        if button is self.button_pause:
-            button.configure(bg=flash_bg, activebackground=flash_bg)
-        else:
-            button.configure(relief="sunken")
+        self.apply_btn_pressed(button)
         self.root.bell()
         self.root.after(
             120,
-            lambda: button.configure(
-                relief=original_relief,
-                bg=original_bg,
-                activebackground=original_active_bg,
-            ),
+            lambda: self.apply_btn_normal(button),
         )
 
     def _start_drag(self, event: tk.Event) -> None:
@@ -232,9 +213,10 @@ class Panel:
         project_name = project_name.strip() if project_name else ""
         project_name = project_name or "nowa_sesja"
         self.controller.start_session(project_name)
-        self.apply_pause_style(False)
         self._set_session_active(True)
         self.flash_button(self.button_start)
+        self.apply_btn_pressed(self.button_start)
+        self.button_start.config(state="disabled")
         self._update_status_label()
 
     def _on_step(self) -> None:
@@ -264,9 +246,12 @@ class Panel:
         self._update_status_label()
 
     def _on_pause(self) -> None:
-        paused = self.controller.toggle_pause()
-        self.apply_pause_style(paused)
         self.flash_button(self.button_pause)
+        paused = self.controller.toggle_pause()
+        if paused:
+            self.root.after(130, lambda: self.apply_btn_pressed(self.button_pause))
+        else:
+            self.root.after(130, lambda: self.apply_btn_normal(self.button_pause))
         self._update_status_label()
 
     def _on_undo(self) -> None:
