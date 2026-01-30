@@ -14,6 +14,12 @@ Wyniki zapisują się w:
 - `sessions/_smoke_test/ai_payload.json`
 - `logs/scribe_web.log`
 
+## Instalacja zależności
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
 ## Demo
 
 Uruchom:
@@ -29,6 +35,10 @@ Uruchom:
 ```bash
 python3 -m scribe_web --panel
 ```
+
+## Flow Etapu 4
+
+S -> K (screenshot) -> E (annot) -> Z
 
 ## Uruchamianie bez Terminala (macOS)
 
