@@ -21,3 +21,11 @@ Uruchom:
 ```bash
 python3 -m scribe_web --demo
 ```
+
+## Panel 2×4
+
+Uruchom:
+
+```bash
+python3 -m scribe_web --panel
+```
