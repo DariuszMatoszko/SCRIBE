@@ -1,277 +1,277 @@
-from __future__ import annotations
-
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-from typing import Callable
 
-from scribe_web.ui.controller import Controller
+from .controller import Controller
 
-BUTTON_FONT = ("Helvetica", 16, "bold")
-STATUS_FONT = ("Helvetica", 8, "bold")
-DRAG_BAR_HEIGHT = 10
-BUTTON_SIZE = 44
 
 PANEL_BG = "#2b2b2b"
 BTN_BG = "#6a6a6a"
 BTN_FG = "#d9d9d9"
-BTN_PRESSED_BG = PANEL_BG
+BTN_BORDER = "#1f1f1f"
+BTN_PRESSED_BG = PANEL_BG  # „pusty/przezroczysty” efekt
+
+ALPHA = 0.5
+FLASH_MS = 120
 
 
-def render_status(status: dict) -> str:
-    session_name = status["project_name"] or "—"
-    steps = status["steps"]
-    pause_text = "ON" if status["paused"] else "OFF"
-    last_action = status.get("last_action") or "—"
-    return (
-        "SESJA: {session}   KROKI: {steps}   PAUZA: {pause}   AKCJA: {action}".format(
-            session=session_name,
-            steps=steps,
-            pause=pause_text,
-            action=last_action,
+class CanvasButton(tk.Frame):
+    """
+    Własny przycisk oparty o Canvas:
+    - pełna kontrola wyglądu (bez macOS-owych „humorów” tk.Button)
+    - tryb momentary (flash) oraz toggle (stały stan pressed)
+    """
+    def __init__(self, master, text, command=None, toggle=False, width=58, height=58):
+        super().__init__(master, bg=PANEL_BG, highlightthickness=0, bd=0)
+        self.command = command
+        self.toggle = toggle
+        self.is_pressed = False
+        self.enabled = True
+
+        self.w = width
+        self.h = height
+
+        self.c = tk.Canvas(
+            self,
+            width=self.w,
+            height=self.h,
+            bg=PANEL_BG,
+            highlightthickness=0,
+            bd=0
         )
-    )
+        self.c.pack()
+
+        # prostokąt + tekst
+        pad = 4
+        self.rect = self.c.create_rectangle(
+            pad, pad, self.w - pad, self.h - pad,
+            fill=BTN_BG, outline=BTN_BORDER, width=2
+        )
+        self.txt = self.c.create_text(
+            self.w / 2, self.h / 2,
+            text=text,
+            fill=BTN_FG,
+            font=("Helvetica", 18, "bold")
+        )
+
+        # eventy
+        self.c.bind("<Button-1>", self._on_click)
+        self.c.bind("<Enter>", self._on_enter)
+        self.c.bind("<Leave>", self._on_leave)
+
+    def set_enabled(self, enabled: bool):
+        self.enabled = enabled
+        # wygląd disabled: zostaw normalny, ale przyciemnij tekst
+        if not enabled:
+            self.c.itemconfig(self.txt, fill="#9a9a9a")
+        else:
+            self.c.itemconfig(self.txt, fill=BTN_FG)
+
+    def set_pressed(self, pressed: bool):
+        self.is_pressed = pressed
+        if pressed:
+            self.c.itemconfig(self.rect, fill=BTN_PRESSED_BG)
+        else:
+            self.c.itemconfig(self.rect, fill=BTN_BG)
+
+    def flash(self):
+        # krótki flash „pusty”, potem wraca (jeśli toggle OFF)
+        self.set_pressed(True)
+        self.after(FLASH_MS, lambda: self.set_pressed(self.is_pressed if self.toggle else False))
+
+    def _on_enter(self, _e):
+        # delikatny outline na hover (bez zmiany tła)
+        self.c.itemconfig(self.rect, outline="#3a3a3a")
+
+    def _on_leave(self, _e):
+        self.c.itemconfig(self.rect, outline=BTN_BORDER)
+
+    def _on_click(self, _e):
+        if not self.enabled:
+            return
+
+        # zawsze flash, żeby było „pstryk”
+        self.flash()
+        self.winfo_toplevel().bell()
+
+        if self.toggle:
+            # toggle: zmień stan na stałe
+            self.set_pressed(not self.is_pressed)
+
+        if self.command:
+            self.command()
 
 
-class Panel:
-    def __init__(self, controller: Controller) -> None:
+class PanelApp:
+    def __init__(self, root: tk.Tk, controller: Controller):
+        self.root = root
         self.controller = controller
-        self.root = tk.Tk()
+
+        self.drag_off_x = 0
+        self.drag_off_y = 0
+
+        self.root.configure(bg=PANEL_BG)
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.5)
-        self.root.configure(bg=PANEL_BG)
-        self.root.bind("<Escape>", lambda event: self.root.destroy())
 
-        self._drag_offset_x = 0
-        self._drag_offset_y = 0
+        # UWAGA: alpha ustawiamy na końcu initu (stabilniej na macOS)
+        # self.root.attributes("-alpha", ALPHA)
 
-        self._build_ui()
-        self._set_session_active(False)
+        # Pasek górny do przeciągania + status
+        self.top = tk.Frame(self.root, bg=PANEL_BG, height=22)
+        self.top.grid(row=0, column=0, sticky="ew")
+        self.top.grid_columnconfigure(0, weight=1)
 
-    def _build_ui(self) -> None:
-        container = tk.Frame(self.root, bg=PANEL_BG, bd=1, relief="solid")
-        container.pack(fill="both", expand=True)
-
-        drag_bar = tk.Frame(container, bg=PANEL_BG, height=DRAG_BAR_HEIGHT, cursor="fleur")
-        drag_bar.pack(fill="x")
-        drag_bar.bind("<ButtonPress-1>", self._start_drag)
-        drag_bar.bind("<B1-Motion>", self._on_drag)
-
-        self.status_label = tk.Label(
-            drag_bar,
-            text="",
-            font=STATUS_FONT,
-            fg="white",
+        self.status_var = tk.StringVar(value=self._render_status())
+        self.status_lbl = tk.Label(
+            self.top,
+            textvariable=self.status_var,
             bg=PANEL_BG,
-            padx=4,
+            fg="#cfcfcf",
+            font=("Helvetica", 11, "bold"),
             anchor="center",
+            padx=8
         )
-        self.status_label.pack(fill="x", expand=True)
-        self.status_label.bind("<ButtonPress-1>", self._start_drag)
-        self.status_label.bind("<B1-Motion>", self._on_drag)
+        self.status_lbl.grid(row=0, column=0, sticky="ew")
 
-        grid = tk.Frame(container, bg=PANEL_BG, padx=4, pady=4)
-        grid.pack()
+        # Drag
+        for w in (self.top, self.status_lbl):
+            w.bind("<ButtonPress-1>", self._start_move)
+            w.bind("<B1-Motion>", self._on_move)
 
-        for row in range(2):
-            grid.grid_rowconfigure(row, minsize=BUTTON_SIZE)
-        for col in range(4):
-            grid.grid_columnconfigure(col, minsize=BUTTON_SIZE)
+        # Siatka przycisków
+        self.grid = tk.Frame(self.root, bg=PANEL_BG)
+        self.grid.grid(row=1, column=0, padx=6, pady=6)
 
-        self.button_start = self._make_button(
-            grid,
-            text="S",
-            command=self._on_start,
-        )
-        self.button_step = self._make_button(
-            grid,
-            text="K",
-            command=self._on_step,
-        )
-        self.button_edit = self._make_button(
-            grid,
-            text="E",
-            command=self._on_edit,
-        )
-        self.button_voice = self._make_button(
-            grid,
-            text="G",
-            command=self._on_voice,
-        )
-        self.button_probe = self._make_button(
-            grid,
-            text="P",
-            command=self._on_probe,
-        )
-        self.button_pause = self._make_button(
-            grid,
-            text="||",
-            command=self._on_pause,
-        )
-        self.button_undo = self._make_button(
-            grid,
-            text="↩",
-            command=self._on_undo,
-        )
-        self.button_end = self._make_button(
-            grid,
-            text="Z",
-            command=self._on_end,
-        )
+        # Rząd 1: S K E G
+        self.btnS = CanvasButton(self.grid, "S", command=self.on_start, toggle=True)
+        self.btnK = CanvasButton(self.grid, "K", command=self.on_step, toggle=False)
+        self.btnE = CanvasButton(self.grid, "E", command=self.on_edit, toggle=False)
+        self.btnG = CanvasButton(self.grid, "G", command=self.on_voice, toggle=False)
 
-        buttons = [
-            self.button_start,
-            self.button_step,
-            self.button_edit,
-            self.button_voice,
-            self.button_probe,
-            self.button_pause,
-            self.button_undo,
-            self.button_end,
-        ]
-        for index, button in enumerate(buttons):
-            row = index // 4
-            col = index % 4
-            button.grid(row=row, column=col, padx=2, pady=2, sticky="nsew")
-            self.apply_btn_normal(button)
+        # Rząd 2: P || ↩ Z
+        self.btnP = CanvasButton(self.grid, "P", command=self.on_probe, toggle=False)
+        self.btnPause = CanvasButton(self.grid, "||", command=self.on_pause, toggle=True)
+        self.btnUndo = CanvasButton(self.grid, "↩", command=self.on_undo, toggle=False)
+        self.btnZ = CanvasButton(self.grid, "Z", command=self.on_end, toggle=False)
 
-        self._update_status_label()
+        self._place_buttons()
 
-    def _make_button(
-        self,
-        parent: tk.Widget,
-        *,
-        text: str,
-        command: Callable[[], None],
-    ) -> tk.Button:
-        return tk.Button(
-            parent,
-            text=text,
-            font=BUTTON_FONT,
-            width=3,
-            height=2,
-            bg=BTN_BG,
-            fg=BTN_FG,
-            activebackground=BTN_BG,
-            activeforeground=BTN_FG,
-            relief="raised",
-            command=command,
-            borderwidth=1,
-            highlightthickness=0,
-        )
+        # skrót awaryjny
+        self.root.bind("<Escape>", lambda _e: self.root.destroy())
 
-    def _set_session_active(self, active: bool) -> None:
-        state_active = tk.NORMAL if active else tk.DISABLED
-        self.button_step.configure(state=state_active)
-        self.button_pause.configure(state=state_active)
-        self.button_undo.configure(state=state_active)
-        self.button_end.configure(state=state_active)
-        self.button_start.configure(state=tk.DISABLED if active else tk.NORMAL)
-        self._update_status_label()
+        # na starcie tylko S ma sens
+        self._set_controls_started(False)
 
-    def _update_status_label(self) -> None:
-        status = self.controller.get_status()
-        self.status_label.configure(text=render_status(status))
+        # alpha na końcu
+        self.root.attributes("-alpha", ALPHA)
 
-    def apply_btn_normal(self, button: tk.Button) -> None:
-        button.configure(
-            bg=BTN_BG,
-            fg=BTN_FG,
-            relief="raised",
-            activebackground=BTN_BG,
-            activeforeground=BTN_FG,
-        )
+    def _place_buttons(self):
+        # 2x4
+        self.btnS.grid(row=0, column=0, padx=4, pady=4)
+        self.btnK.grid(row=0, column=1, padx=4, pady=4)
+        self.btnE.grid(row=0, column=2, padx=4, pady=4)
+        self.btnG.grid(row=0, column=3, padx=4, pady=4)
 
-    def apply_btn_pressed(self, button: tk.Button) -> None:
-        button.configure(
-            bg=BTN_PRESSED_BG,
-            fg=BTN_FG,
-            relief="sunken",
-            activebackground=BTN_PRESSED_BG,
-            activeforeground=BTN_FG,
-        )
+        self.btnP.grid(row=1, column=0, padx=4, pady=4)
+        self.btnPause.grid(row=1, column=1, padx=4, pady=4)
+        self.btnUndo.grid(row=1, column=2, padx=4, pady=4)
+        self.btnZ.grid(row=1, column=3, padx=4, pady=4)
 
-    def flash_button(self, button: tk.Button) -> None:
-        self.apply_btn_pressed(button)
-        self.root.bell()
-        self.root.after(
-            120,
-            lambda: self.apply_btn_normal(button),
-        )
+    def _set_controls_started(self, started: bool):
+        # S: enabled zawsze, ale po starcie blokujemy (żeby nie robić 2 sesji)
+        if started:
+            self.btnS.set_enabled(False)  # S zostaje „wciśnięte” i zablokowane
+            self.btnS.set_pressed(True)
+        else:
+            self.btnS.set_enabled(True)
+            self.btnS.set_pressed(False)
 
-    def _start_drag(self, event: tk.Event) -> None:
-        self._drag_offset_x = event.x_root - self.root.winfo_x()
-        self._drag_offset_y = event.y_root - self.root.winfo_y()
+        # reszta aktywna dopiero po starcie
+        for b in (self.btnK, self.btnE, self.btnG, self.btnP, self.btnPause, self.btnUndo, self.btnZ):
+            b.set_enabled(started)
+            if b is self.btnPause:
+                b.set_pressed(False)  # pauza OFF na start
 
-    def _on_drag(self, event: tk.Event) -> None:
-        x = event.x_root - self._drag_offset_x
-        y = event.y_root - self._drag_offset_y
+    def _render_status(self) -> str:
+        st = self.controller.get_status()
+        name = st.get("project_name") or "—"
+        steps = st.get("steps", 0)
+        paused = "ON" if st.get("paused") else "OFF"
+        action = st.get("last_action") or "—"
+        return f"SESJA: {name}   KROKI: {steps}   PAUZA: {paused}   AKCJA: {action}"
+
+    def _refresh_status(self):
+        self.status_var.set(self._render_status())
+
+    def _start_move(self, event):
+        self.drag_off_x = event.x
+        self.drag_off_y = event.y
+
+    def _on_move(self, event):
+        x = self.root.winfo_x() + (event.x - self.drag_off_x)
+        y = self.root.winfo_y() + (event.y - self.drag_off_y)
         self.root.geometry(f"+{x}+{y}")
 
-    def _on_start(self) -> None:
-        project_name = simpledialog.askstring("SCRIBE", "Nazwa projektu:")
-        project_name = project_name.strip() if project_name else ""
-        project_name = project_name or "nowa_sesja"
-        self.controller.start_session(project_name)
-        self._set_session_active(True)
-        self.flash_button(self.button_start)
-        self.apply_btn_pressed(self.button_start)
-        self.button_start.config(state="disabled")
-        self._update_status_label()
+    # Handlery
+    def on_start(self):
+        name = simpledialog.askstring("SCRIBE", "Nazwa projektu:", parent=self.root)
+        if name is None:
+            # cancel -> nic
+            self.btnS.set_pressed(False)
+            return
+        name = name.strip()
+        if not name:
+            name = "nowa_sesja"
 
-    def _on_step(self) -> None:
+        self.controller.start_session(name)
+        self._set_controls_started(True)
+        self._refresh_status()
+
+    def on_step(self):
         self.controller.add_step_stub()
-        self.flash_button(self.button_step)
-        self._update_status_label()
+        self._refresh_status()
 
-    def _on_edit(self) -> None:
+    def on_edit(self):
+        # STUB – etap 4
         self.controller.last_action = "E"
-        self._update_status_label()
+        self._refresh_status()
         messagebox.showinfo("SCRIBE", "STUB: edycja screena w Etap 4")
-        self.flash_button(self.button_edit)
-        self._update_status_label()
 
-    def _on_voice(self) -> None:
+    def on_voice(self):
+        # STUB – etap 5
         self.controller.last_action = "G"
-        self._update_status_label()
+        self._refresh_status()
         messagebox.showinfo("SCRIBE", "STUB: audio+transkrypcja w Etap 5")
-        self.flash_button(self.button_voice)
-        self._update_status_label()
 
-    def _on_probe(self) -> None:
+    def on_probe(self):
+        # STUB – etap 6
         self.controller.last_action = "P"
-        self._update_status_label()
+        self._refresh_status()
         messagebox.showinfo("SCRIBE", "STUB: probe WWW w Etap 6")
-        self.flash_button(self.button_probe)
-        self._update_status_label()
 
-    def _on_pause(self) -> None:
-        self.flash_button(self.button_pause)
+    def on_pause(self):
         paused = self.controller.toggle_pause()
-        if paused:
-            self.root.after(130, lambda: self.apply_btn_pressed(self.button_pause))
-        else:
-            self.root.after(130, lambda: self.apply_btn_normal(self.button_pause))
-        self._update_status_label()
+        # ustaw stan toggle zgodnie z kontrolerem
+        self.btnPause.set_pressed(paused)
+        self._refresh_status()
 
-    def _on_undo(self) -> None:
+    def on_undo(self):
         self.controller.undo_last_step()
-        self.flash_button(self.button_undo)
-        self._update_status_label()
+        self._refresh_status()
 
-    def _on_end(self) -> None:
-        session_dir = self.controller.end_session()
-        if session_dir is not None:
-            messagebox.showinfo("SCRIBE", f"Sesja zakończona: {session_dir}")
-        self.flash_button(self.button_end)
-        self._set_session_active(False)
+    def on_end(self):
+        sd = self.controller.end_session()
+        if sd:
+            messagebox.showinfo("SCRIBE", f"Zapisano sesję:\n{sd}")
         self.root.destroy()
 
-    def run(self) -> None:
-        self.root.mainloop()
 
+def run_panel(config: dict):
+    root = tk.Tk()
+    root.title("SCRIBE")
+    ctrl = Controller(config)
+    app = PanelApp(root, ctrl)
 
-def run_panel(config: dict) -> None:
-    controller = Controller(config)
-    panel = Panel(controller)
-    panel.run()
+    # sensowna pozycja startowa
+    root.geometry("+200+200")
+    root.mainloop()
