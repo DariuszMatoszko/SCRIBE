@@ -24,6 +24,10 @@ def _open_annotator(
     on_done: Callable[[bool], None] | None,
     blocking: bool,
 ) -> bool:
+    if not input_png.exists():
+        if on_done:
+            on_done(False)
+        return False
     image = Image.open(input_png).convert("RGB")
     orig_w, orig_h = image.size
     disp_w, disp_h, scale = _scale_to_fit(orig_w, orig_h)
@@ -132,7 +136,7 @@ def annotate_freehand(
     output_png: Path,
     on_done: Callable[[bool], None] | None = None,
 ) -> bool:
-    return _open_annotator(input_png, output_png, on_done, blocking=on_done is None)
+    return _open_annotator(input_png, output_png, on_done, blocking=False)
 
 
 def annotate_freehand_blocking(input_png: Path, output_png: Path) -> bool:

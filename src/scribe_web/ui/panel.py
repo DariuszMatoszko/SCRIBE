@@ -286,10 +286,7 @@ class PanelApp:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        self.root.after(
-            50,
-            lambda: (self.root.attributes("-topmost", True), self.root.lift(), self.root.focus_force()),
-        )
+        self.root.after(50, lambda: self.root.focus_force())
 
     def on_step(self):
         self.controller.add_step_screenshot_and_edit_and_voice(seconds=20)
