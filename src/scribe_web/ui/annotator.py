@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 import tkinter as tk
 
@@ -17,12 +18,23 @@ def _scale_to_fit(width: int, height: int) -> tuple[int, int, float]:
     return int(width * scale), int(height * scale), scale
 
 
-def annotate_freehand(input_png: Path, output_png: Path) -> bool:
+def _open_annotator(
+    input_png: Path,
+    output_png: Path,
+    on_done: Callable[[bool], None] | None,
+    blocking: bool,
+) -> bool:
     image = Image.open(input_png).convert("RGB")
     orig_w, orig_h = image.size
     disp_w, disp_h, scale = _scale_to_fit(orig_w, orig_h)
 
-    root = tk.Tk()
+    parent = tk._default_root
+    owned_root = False
+    if parent is None:
+        root = tk.Tk()
+        owned_root = True
+    else:
+        root = tk.Toplevel(parent)
     root.title("SCRIBE: Annotate")
     root.attributes("-topmost", True)
 
@@ -71,6 +83,8 @@ def annotate_freehand(input_png: Path, output_png: Path) -> bool:
         if not segments:
             saved["ok"] = False
             root.destroy()
+            if on_done:
+                on_done(False)
             return
         annotated = image.copy()
         draw = ImageDraw.Draw(annotated)
@@ -85,10 +99,14 @@ def annotate_freehand(input_png: Path, output_png: Path) -> bool:
         annotated.save(output_png, format="PNG")
         saved["ok"] = True
         root.destroy()
+        if on_done:
+            on_done(True)
 
     def on_cancel(_event=None):
         saved["ok"] = False
         root.destroy()
+        if on_done:
+            on_done(False)
 
     canvas.bind("<ButtonPress-1>", on_press)
     canvas.bind("<B1-Motion>", on_drag)
@@ -97,5 +115,22 @@ def annotate_freehand(input_png: Path, output_png: Path) -> bool:
     root.bind("<Return>", on_save)
     root.bind("<Escape>", on_cancel)
     root.protocol("WM_DELETE_WINDOW", on_cancel)
-    root.mainloop()
-    return saved["ok"]
+    if blocking:
+        if owned_root:
+            root.mainloop()
+        else:
+            root.wait_window()
+        return saved["ok"]
+    return True
+
+
+def annotate_freehand(
+    input_png: Path,
+    output_png: Path,
+    on_done: Callable[[bool], None] | None = None,
+) -> bool:
+    return _open_annotator(input_png, output_png, on_done, blocking=on_done is None)
+
+
+def annotate_freehand_blocking(input_png: Path, output_png: Path) -> bool:
+    return _open_annotator(input_png, output_png, on_done=None, blocking=True)

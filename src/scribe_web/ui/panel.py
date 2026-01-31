@@ -272,9 +272,13 @@ class PanelApp:
         self.controller.start_session(name)
         self._set_controls_started(True)
         self._refresh_status()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        self.root.after(50, lambda: self.root.focus_force())
 
     def on_step(self):
-        self.controller.add_step_screenshot()
+        self.controller.add_step_screenshot_and_edit_and_voice(seconds=20)
         self._refresh_status()
 
     def on_edit(self):
