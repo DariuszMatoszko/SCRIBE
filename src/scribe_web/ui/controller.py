@@ -9,7 +9,7 @@ from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root
 from scribe_web.core.utils import atomic_write_json
 from scribe_web.core.voice_attach import record_and_attach_to_last_step
-from scribe_web.ui.annotator import annotate_freehand
+from scribe_web.ui.annotator import annotate_freehand_blocking
 
 
 class Controller:
@@ -77,7 +77,7 @@ class Controller:
         input_abs = self.ctx.session_dir / screenshot_rel
         out_rel = f"steps/step_{step['id']:03d}_annot.png"
         out_abs = self.ctx.session_dir / out_rel
-        ok = annotate_freehand(input_abs, out_abs)
+        ok = annotate_freehand_blocking(input_abs, out_abs)
         if ok:
             step["assets"]["annotated"] = out_rel
             atomic_write_json(self.ctx.payload_path, self.ctx.payload)
@@ -116,13 +116,21 @@ class Controller:
         if self.ctx is None:
             raise RuntimeError("Session has not been started yet")
         result = record_and_attach_to_last_step(self.ctx, seconds=seconds)
-        self.last_action = "V"
+        self.last_action = "G"
         self.logger.info(
             "VOICE step: step=%s wav=%s",
             self.ctx.payload["steps"][-1]["id"],
             result["wav"],
         )
         return result
+
+    def add_step_screenshot_and_edit_and_voice(self, seconds: int = 20) -> bool:
+        self.add_step_screenshot()
+        ok = self.annotate_last_step()
+        if not ok:
+            return False
+        self.record_voice_last_step(seconds=seconds)
+        return True
 
     def end_session(self) -> Path | None:
         if self.ctx is None:
