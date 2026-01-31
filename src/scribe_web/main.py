@@ -11,6 +11,7 @@ from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root, repo_root, sessions_root
 from scribe_web.core.payload_v1 import build_payload, build_step
 from scribe_web.core.session import add_step, create_session
+from scribe_web.core.voice_attach import record_and_attach_to_last_step
 
 
 def run_smoke_test() -> Path:
@@ -40,6 +41,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="SCRIBE_WEB CLI")
     parser.add_argument("--smoke", action="store_true", help="Run smoke test")
     parser.add_argument("--demo", action="store_true", help="Create demo session with sample steps")
+    parser.add_argument("--voice-demo", action="store_true", help="Record voice and attach to last step")
     parser.add_argument("--panel", action="store_true", help="Run always-on-top control panel")
     args = parser.parse_args()
 
@@ -79,6 +81,20 @@ def main() -> None:
             ),
         )
         print("OK: demo session created")
+        print(str(ctx.payload_path.resolve()))
+        print(str(ctx.session_dir.resolve()))
+        return
+    if args.voice_demo:
+        config_path = repo_root() / DEFAULT_CONFIG_PATH
+        config = load_config(config_path)
+        project_name = input("Podaj nazwę projektu (Enter = nowa_sesja): ").strip() or "nowa_sesja"
+        ctx = create_session(project_name, config)
+        add_step(ctx, build_step(1, "", "", ""))
+        result = record_and_attach_to_last_step(ctx, seconds=10)
+        print("OK: voice demo complete")
+        print(f"WAV: {result['wav']}")
+        print(f"RAW: {result['raw']}")
+        print(f"CLEAN: {result['clean']}")
         print(str(ctx.payload_path.resolve()))
         print(str(ctx.session_dir.resolve()))
         return

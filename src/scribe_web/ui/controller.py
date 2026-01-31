@@ -8,6 +8,7 @@ from scribe_web.core.session import SessionContext, add_step, create_session
 from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root
 from scribe_web.core.utils import atomic_write_json
+from scribe_web.core.voice_attach import record_and_attach_to_last_step
 from scribe_web.ui.annotator import annotate_freehand
 
 
@@ -110,6 +111,18 @@ class Controller:
         self.last_action = "↩"
         self.logger.info("UNDO step: ok=True steps=%s", len(steps))
         return True
+
+    def record_voice_last_step(self, seconds: int = 20) -> dict:
+        if self.ctx is None:
+            raise RuntimeError("Session has not been started yet")
+        result = record_and_attach_to_last_step(self.ctx, seconds=seconds)
+        self.last_action = "V"
+        self.logger.info(
+            "VOICE step: step=%s wav=%s",
+            self.ctx.payload["steps"][-1]["id"],
+            result["wav"],
+        )
+        return result
 
     def end_session(self) -> Path | None:
         if self.ctx is None:

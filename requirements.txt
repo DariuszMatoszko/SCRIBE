@@ -2,3 +2,6 @@
 # Etap 2+: mss, pynput, sounddevice, whisper/vosk, itp.
 mss
 Pillow
+sounddevice
+soundfile
+openai-whisper
