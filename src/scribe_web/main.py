@@ -11,7 +11,6 @@ from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root, repo_root, sessions_root
 from scribe_web.core.payload_v1 import build_payload, build_step
 from scribe_web.core.session import add_step, create_session
-from scribe_web.core.voice_attach import record_and_attach_to_last_step
 
 
 def run_smoke_test() -> Path:
@@ -90,6 +89,13 @@ def main() -> None:
         project_name = input("Podaj nazwę projektu (Enter = nowa_sesja): ").strip() or "nowa_sesja"
         ctx = create_session(project_name, config)
         add_step(ctx, build_step(1, "", "", ""))
+        try:
+            from scribe_web.core.voice_attach import record_and_attach_to_last_step
+        except ModuleNotFoundError as e:
+            print(
+                "BRAK ZALEŻNOŚCI AUDIO: zainstaluj requirements.txt (sounddevice/soundfile/whisper)."
+            )
+            raise
         result = record_and_attach_to_last_step(ctx, seconds=10)
         print("OK: voice demo complete")
         print(f"WAV: {result['wav']}")
