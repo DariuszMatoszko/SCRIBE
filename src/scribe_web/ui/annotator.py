@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 import tkinter as tk
-from tkinter import messagebox
 
 from PIL import Image, ImageDraw, ImageTk
 
 
 MAX_WIDTH = 1100
 MAX_HEIGHT = 800
-OUTLINE_COLOR = "red"
-OUTLINE_WIDTH = 4
+STROKE_COLOR = "red"
+STROKE_WIDTH = 6
 
 
 def _scale_to_fit(width: int, height: int) -> tuple[int, int, float]:
@@ -18,7 +17,7 @@ def _scale_to_fit(width: int, height: int) -> tuple[int, int, float]:
     return int(width * scale), int(height * scale), scale
 
 
-def annotate_image(input_png: Path, output_png: Path) -> bool:
+def annotate_freehand(input_png: Path, output_png: Path) -> bool:
     image = Image.open(input_png).convert("RGB")
     orig_w, orig_h = image.size
     disp_w, disp_h, scale = _scale_to_fit(orig_w, orig_h)
@@ -35,70 +34,68 @@ def annotate_image(input_png: Path, output_png: Path) -> bool:
     canvas.create_image(0, 0, anchor="nw", image=tk_img)
     canvas.image = tk_img
 
-    rect_id = None
-    start = {"x": 0, "y": 0}
-    end = {"x": 0, "y": 0}
+    segments: list[tuple[int, int, int, int]] = []
+    last_point = {"x": None, "y": None}
     saved = {"ok": False}
 
     def on_press(event):
-        start["x"] = event.x
-        start["y"] = event.y
-        end["x"] = event.x
-        end["y"] = event.y
-        nonlocal rect_id
-        if rect_id is not None:
-            canvas.delete(rect_id)
-        rect_id = canvas.create_rectangle(
-            start["x"],
-            start["y"],
-            end["x"],
-            end["y"],
-            outline=OUTLINE_COLOR,
-            width=OUTLINE_WIDTH,
-        )
+        last_point["x"] = event.x
+        last_point["y"] = event.y
 
     def on_drag(event):
-        end["x"] = event.x
-        end["y"] = event.y
-        if rect_id is not None:
-            canvas.coords(rect_id, start["x"], start["y"], end["x"], end["y"])
-
-    def on_save():
-        if rect_id is None:
-            messagebox.showinfo("SCRIBE", "Najpierw narysuj prostokąt.")
+        if last_point["x"] is None or last_point["y"] is None:
             return
-        x1 = min(start["x"], end["x"]) / scale
-        y1 = min(start["y"], end["y"]) / scale
-        x2 = max(start["x"], end["x"]) / scale
-        y2 = max(start["y"], end["y"]) / scale
-        x1 = max(0, min(orig_w, int(x1)))
-        y1 = max(0, min(orig_h, int(y1)))
-        x2 = max(0, min(orig_w, int(x2)))
-        y2 = max(0, min(orig_h, int(y2)))
+        x1 = last_point["x"]
+        y1 = last_point["y"]
+        x2 = event.x
+        y2 = event.y
+        segments.append((x1, y1, x2, y2))
+        canvas.create_line(
+            x1,
+            y1,
+            x2,
+            y2,
+            fill=STROKE_COLOR,
+            width=STROKE_WIDTH,
+            capstyle=tk.ROUND,
+            smooth=True,
+        )
+        last_point["x"] = x2
+        last_point["y"] = y2
 
+    def on_release(_event):
+        last_point["x"] = None
+        last_point["y"] = None
+
+    def on_save(_event=None):
+        if not segments:
+            saved["ok"] = False
+            root.destroy()
+            return
         annotated = image.copy()
         draw = ImageDraw.Draw(annotated)
-        draw.rectangle([x1, y1, x2, y2], outline=OUTLINE_COLOR, width=OUTLINE_WIDTH)
-
+        for x1, y1, x2, y2 in segments:
+            draw.line(
+                [x1 / scale, y1 / scale, x2 / scale, y2 / scale],
+                fill=STROKE_COLOR,
+                width=STROKE_WIDTH,
+                joint="round",
+            )
         output_png.parent.mkdir(parents=True, exist_ok=True)
         annotated.save(output_png, format="PNG")
         saved["ok"] = True
         root.destroy()
 
-    def on_cancel():
+    def on_cancel(_event=None):
         saved["ok"] = False
         root.destroy()
 
     canvas.bind("<ButtonPress-1>", on_press)
     canvas.bind("<B1-Motion>", on_drag)
+    canvas.bind("<ButtonRelease-1>", on_release)
 
-    btn_frame = tk.Frame(root)
-    btn_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=6)
-    btn_save = tk.Button(btn_frame, text="Save", command=on_save, width=10)
-    btn_cancel = tk.Button(btn_frame, text="Cancel", command=on_cancel, width=10)
-    btn_save.pack(side=tk.LEFT, padx=10)
-    btn_cancel.pack(side=tk.RIGHT, padx=10)
-
+    root.bind("<Return>", on_save)
+    root.bind("<Escape>", on_cancel)
     root.protocol("WM_DELETE_WINDOW", on_cancel)
     root.mainloop()
     return saved["ok"]
