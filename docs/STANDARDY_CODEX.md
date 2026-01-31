@@ -25,8 +25,8 @@
 - START nazwy projektu: bez okna z przyciskami, tylko mały pasek z Entry:
   - pojawia się NAD panelem
   - ENTER = zatwierdź, ESC = anuluj
-- K: tworzy krok + screenshot (assets.screenshot)
-- E: edytuje ostatni screenshot „mazakiem” i zapisuje assets.annotated
+- K: tworzy krok + screenshot i uruchamia mazak (adnotacja)
+- C: CLEAN — przenosi puste sesje do sessions/_trash (z potwierdzeniem)
 - G/P zostają stubami na później
 
 ## 5) Zasady payload (AI_PAYLOAD v1)
