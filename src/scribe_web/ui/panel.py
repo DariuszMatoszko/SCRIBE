@@ -144,7 +144,7 @@ class PanelApp:
 
         self.btnS = CanvasButton(self.grid, "S", command=self.on_start, toggle=True)
         self.btnK = CanvasButton(self.grid, "K", command=self.on_step)
-        self.btnE = CanvasButton(self.grid, "E", command=self.on_edit)
+        self.btnC = CanvasButton(self.grid, "C", command=self.on_clean)
         self.btnG = CanvasButton(self.grid, "G", command=self.on_voice)
 
         self.btnP = CanvasButton(self.grid, "P", command=self.on_probe)
@@ -164,7 +164,7 @@ class PanelApp:
     def _place_buttons(self):
         self.btnS.grid(row=0, column=0, padx=1, pady=1)
         self.btnK.grid(row=0, column=1, padx=1, pady=1)
-        self.btnE.grid(row=0, column=2, padx=1, pady=1)
+        self.btnC.grid(row=0, column=2, padx=1, pady=1)
         self.btnG.grid(row=0, column=3, padx=1, pady=1)
 
         self.btnP.grid(row=1, column=0, padx=1, pady=1)
@@ -227,6 +227,73 @@ class PanelApp:
         self.root.after(50, lambda: (self.root.lift(), self.root.focus_force()))
         return result["value"]
 
+    def _ask_confirm_text(self, prompt: str) -> str | None:
+        dialog = tk.Toplevel(self.root)
+        dialog.overrideredirect(True)
+        dialog.configure(bg=PANEL_BG)
+        dialog.attributes("-topmost", True)
+
+        result = {"value": None}
+
+        label = tk.Label(
+            dialog,
+            text=prompt,
+            bg=PANEL_BG,
+            fg="#cfcfcf",
+            font=("Helvetica", 9, "bold"),
+            anchor="center",
+            padx=2,
+            pady=0,
+        )
+        label.pack(fill=tk.X, padx=1, pady=(1, 0))
+
+        entry = tk.Entry(
+            dialog,
+            bg="#3a3a3a",
+            fg=BTN_FG,
+            insertbackground=BTN_FG,
+            relief="flat",
+            highlightthickness=0,
+        )
+        entry.pack(fill=tk.X, padx=2, pady=2)
+
+        def finish(val: str | None):
+            result["value"] = val
+            try:
+                dialog.grab_release()
+            except Exception:
+                pass
+            dialog.destroy()
+
+        dialog.bind("<Escape>", lambda _e: finish(None))
+        entry.bind("<Escape>", lambda _e: finish(None))
+        entry.bind("<Return>", lambda _e: finish(entry.get()))
+        dialog.bind("<Return>", lambda _e: finish(entry.get()))
+
+        dialog.update_idletasks()
+        self.root.update_idletasks()
+        panel_w = self.root.winfo_width()
+        height = label.winfo_reqheight() + entry.winfo_reqheight() + 6
+        x = self.root.winfo_x()
+        y = self.root.winfo_y() - height - 12
+        if y < 10:
+            y = self.root.winfo_y() + self.root.winfo_height() + 12
+        dialog.geometry(f"{panel_w}x{height}+{x}+{y}")
+
+        try:
+            dialog.transient(self.root)
+        except tk.TclError:
+            pass
+        dialog.attributes("-topmost", True)
+        dialog.grab_set()
+        entry.focus_force()
+        dialog.wait_window()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        self.root.after(50, lambda: (self.root.lift(), self.root.focus_force()))
+        return result["value"]
+
     def _set_controls_started(self, started: bool):
         if started:
             self.btnS.set_enabled(False)
@@ -235,7 +302,7 @@ class PanelApp:
             self.btnS.set_enabled(True)
             self.btnS.set_pressed(False)
 
-        for b in (self.btnK, self.btnE, self.btnG, self.btnP, self.btnPause, self.btnUndo, self.btnZ):
+        for b in (self.btnK, self.btnC, self.btnG, self.btnP, self.btnPause, self.btnUndo, self.btnZ):
             b.set_enabled(started)
             if b is self.btnPause:
                 b.set_pressed(False)
@@ -295,11 +362,21 @@ class PanelApp:
         self.controller.add_step_screenshot_and_edit_and_voice(seconds=20)
         self._refresh_status()
 
-    def on_edit(self):
-        ok = self.controller.annotate_last_step()
+    def on_clean(self):
+        confirm = self._ask_confirm_text(prompt="Wpisz CLEAN aby wyczyścić puste sesje:")
+        if confirm is None:
+            return
+        if confirm.strip().upper() != "CLEAN":
+            messagebox.showinfo("SCRIBE", "Anulowano (nie wpisano CLEAN).")
+            return
+
+        result = self.controller.clean_empty_sessions()
         self._refresh_status()
-        if not ok:
-            messagebox.showinfo("SCRIBE", "Najpierw zrób K")
+        messagebox.showinfo(
+            "SCRIBE",
+            "CLEAN: przeniesiono "
+            f"{result['moved']} pustych sesji do:\n{result['trash_dir']}",
+        )
 
     def on_voice(self):
         try:

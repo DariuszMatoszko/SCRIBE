@@ -25,10 +25,9 @@
 - START nazwy projektu: bez okna z przyciskami, tylko mały pasek z Entry:
   - pojawia się NAD panelem
   - ENTER = zatwierdź, ESC = anuluj
-- K: tworzy krok + screenshot (assets.screenshot)
-- E: edytuje ostatni screenshot „mazakiem” i zapisuje assets.annotated
-- G: działa w trybie toggle START/STOP, dopina audio/transkrypcję do ostatniego kroku (lub kroku z momentu START, jeśli w trakcie powstał nowy). Pliki zapisywane do transcripts/step_XXX.(wav/_raw.txt/_clean.txt). Brak zależności audio/whisper nie może wywalać panelu — błąd ma być obsłużony lokalnie w G. (Aktualizacja: wymagane w patchu BTN G.)
-- P zostaje stubem na później
+- K: tworzy krok + screenshot i uruchamia mazak (adnotacja)
+- C: CLEAN — przenosi puste sesje do sessions/_trash (z potwierdzeniem)
+- G/P zostają stubami na później
 
 ## 5) Zasady payload (AI_PAYLOAD v1)
 - assets.screenshot / assets.annotated to ścieżki względne w obrębie folderu sesji (np. "steps/step_001.png")

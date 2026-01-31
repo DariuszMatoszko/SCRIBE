@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from pathlib import Path
 import shutil
 
@@ -208,3 +210,45 @@ class Controller:
         self.paused = False
         self.last_action = None
         return session_dir
+
+    def clean_empty_sessions(self) -> dict:
+        """
+        Przenosi puste sesje (steps==[]) do sessions/_trash.
+        Zwraca podsumowanie: {"moved": int, "trash_dir": str}
+        """
+        sessions_root = Path(self.config.get("sessions_root", "sessions"))
+        trash_dir = sessions_root / "_trash"
+        trash_dir.mkdir(parents=True, exist_ok=True)
+
+        moved = 0
+        for p in sessions_root.iterdir():
+            if not p.is_dir():
+                continue
+            name = p.name
+            if name in ("_trash", "_smoke_test"):
+                continue
+            payload = p / "ai_payload.json"
+            if not payload.exists():
+                continue
+            try:
+                data = json.loads(payload.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            steps = data.get("steps", None)
+            if steps is None:
+                continue
+            if len(steps) != 0:
+                continue
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dest = trash_dir / f"{name}__{ts}"
+            i = 1
+            while dest.exists():
+                dest = trash_dir / f"{name}__{ts}_{i}"
+                i += 1
+            p.rename(dest)
+            moved += 1
+
+        self.last_action = "C"
+        self.logger.info("CLEAN moved=%s trash=%s", moved, trash_dir)
+        return {"moved": moved, "trash_dir": str(trash_dir)}
