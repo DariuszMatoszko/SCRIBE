@@ -107,25 +107,40 @@ class PanelApp:
         self.top.grid(row=0, column=0, sticky="ew")
         self.top.grid_columnconfigure(0, weight=1)
 
-        self.status_var = tk.StringVar(value=self._render_status())
-        self.status_lbl = tk.Label(
+        self.status_var_line1 = tk.StringVar()
+        self.status_var_line2 = tk.StringVar()
+        self.status_lbl_line1 = tk.Label(
             self.top,
-            textvariable=self.status_var,
+            textvariable=self.status_var_line1,
             bg=PANEL_BG,
             fg="#cfcfcf",
             font=("Helvetica", 9, "bold"),
             anchor="center",
-            padx=4,
-            pady=1,
+            padx=1,
+            pady=0,
+            justify="center",
         )
-        self.status_lbl.grid(row=0, column=0, sticky="ew")
+        self.status_lbl_line1.grid(row=0, column=0, sticky="ew")
 
-        for w in (self.top, self.status_lbl):
+        self.status_lbl_line2 = tk.Label(
+            self.top,
+            textvariable=self.status_var_line2,
+            bg=PANEL_BG,
+            fg="#cfcfcf",
+            font=("Helvetica", 9, "bold"),
+            anchor="center",
+            padx=1,
+            pady=0,
+            justify="center",
+        )
+        self.status_lbl_line2.grid(row=1, column=0, sticky="ew")
+
+        for w in (self.top, self.status_lbl_line1, self.status_lbl_line2):
             w.bind("<ButtonPress-1>", self._start_move)
             w.bind("<B1-Motion>", self._on_move)
 
         self.grid = tk.Frame(self.root, bg=PANEL_BG)
-        self.grid.grid(row=1, column=0, padx=2, pady=2)
+        self.grid.grid(row=1, column=0, padx=0, pady=0)
 
         self.btnS = CanvasButton(self.grid, "S", command=self.on_start, toggle=True)
         self.btnK = CanvasButton(self.grid, "K", command=self.on_step)
@@ -144,6 +159,7 @@ class PanelApp:
         self._set_controls_started(False)
 
         self.root.attributes("-alpha", ALPHA)
+        self._refresh_status()
 
     def _place_buttons(self):
         self.btnS.grid(row=0, column=0, padx=1, pady=1)
@@ -164,7 +180,14 @@ class PanelApp:
 
         result = {"value": None}
 
-        entry = tk.Entry(dialog)
+        entry = tk.Entry(
+            dialog,
+            bg="#3a3a3a",
+            fg=BTN_FG,
+            insertbackground=BTN_FG,
+            relief="flat",
+            highlightthickness=0,
+        )
         entry.pack(fill=tk.X, padx=2, pady=2)
 
         def on_ok(_event=None):
@@ -175,21 +198,22 @@ class PanelApp:
             result["value"] = None
             dialog.destroy()
 
-        dialog.bind("<Return>", on_ok)
-        dialog.bind("<Escape>", on_cancel)
+        for target in (dialog, entry):
+            target.bind("<Return>", on_ok)
+            target.bind("<Escape>", on_cancel)
         dialog.protocol("WM_DELETE_WINDOW", on_cancel)
 
         dialog.update_idletasks()
         self.root.update_idletasks()
-        width = self.root.winfo_width()
+        panel_w = self.root.winfo_width()
         height = entry.winfo_reqheight() + 4
         x = self.root.winfo_x()
         y = self.root.winfo_y() - height - 12
         if y < 10:
             y = self.root.winfo_y() + self.root.winfo_height() + 12
-        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        dialog.geometry(f"{panel_w}x{height}+{x}+{y}")
 
-        entry.focus_set()
+        entry.focus_force()
         dialog.grab_set()
         dialog.wait_window()
         return result["value"]
@@ -207,16 +231,25 @@ class PanelApp:
             if b is self.btnPause:
                 b.set_pressed(False)
 
-    def _render_status(self) -> str:
+    def _render_status_lines(self) -> tuple[str, str]:
         st = self.controller.get_status()
         name = st.get("project_name") or "—"
         steps = st.get("steps", 0)
         paused = "ON" if st.get("paused") else "OFF"
         action = st.get("last_action") or "—"
-        return f"SESJA: {name}   KROKI: {steps}   PAUZA: {paused}   AKCJA: {action}"
+        line1 = f"SESJA: {name}   KROKI: {steps}"
+        line2 = f"PAUZA: {paused}   AKCJA: {action}"
+        return line1, line2
 
     def _refresh_status(self):
-        self.status_var.set(self._render_status())
+        line1, line2 = self._render_status_lines()
+        self.status_var_line1.set(line1)
+        self.status_var_line2.set(line2)
+        self.root.update_idletasks()
+        wrap_w = self.grid.winfo_width()
+        if wrap_w:
+            for lbl in (self.status_lbl_line1, self.status_lbl_line2):
+                lbl.configure(wraplength=wrap_w)
 
     def _start_move(self, event):
         self.drag_off_x = event.x
