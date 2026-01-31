@@ -215,7 +215,13 @@ class PanelApp:
 
         entry.focus_force()
         dialog.grab_set()
-        dialog.wait_window()
+        try:
+            dialog.wait_window()
+        finally:
+            try:
+                dialog.grab_release()
+            except tk.TclError:
+                pass
         return result["value"]
 
     def _set_controls_started(self, started: bool):
@@ -272,10 +278,18 @@ class PanelApp:
         self.controller.start_session(name)
         self._set_controls_started(True)
         self._refresh_status()
+        for w in (self.top, self.status_lbl_line1, self.status_lbl_line2):
+            try:
+                w.grab_release()
+            except tk.TclError:
+                pass
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        self.root.after(50, lambda: self.root.focus_force())
+        self.root.after(
+            50,
+            lambda: (self.root.attributes("-topmost", True), self.root.lift(), self.root.focus_force()),
+        )
 
     def on_step(self):
         self.controller.add_step_screenshot_and_edit_and_voice(seconds=20)

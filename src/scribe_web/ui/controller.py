@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 
 from scribe_web.core.capture import capture_fullscreen_png
 from scribe_web.core.payload_v1 import build_step
@@ -74,18 +75,20 @@ class Controller:
         if not screenshot_rel:
             self.logger.info("ANNOTATE step: ok=False screenshot=missing")
             return False
-        input_abs = self.ctx.session_dir / screenshot_rel
-        out_rel = f"steps/step_{step['id']:03d}_annot.png"
-        out_abs = self.ctx.session_dir / out_rel
-        ok = annotate_freehand_blocking(input_abs, out_abs)
+        screenshot_abs = self.ctx.session_dir / screenshot_rel
+        orig_rel = f"steps/step_{step['id']:03d}_orig.png"
+        orig_abs = self.ctx.session_dir / orig_rel
+        if not orig_abs.exists():
+            shutil.copy2(screenshot_abs, orig_abs)
+        ok = annotate_freehand_blocking(orig_abs, screenshot_abs)
         if ok:
-            step["assets"]["annotated"] = out_rel
+            step["assets"]["annotated"] = screenshot_rel
             atomic_write_json(self.ctx.payload_path, self.ctx.payload)
             self.last_action = "E"
             self.logger.info(
                 "ANNOTATE step: ok=True step=%s output=%s",
                 step["id"],
-                out_rel,
+                screenshot_rel,
             )
         else:
             self.logger.info("ANNOTATE step: ok=False step=%s", step["id"])

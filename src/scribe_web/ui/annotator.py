@@ -86,17 +86,20 @@ def _open_annotator(
             if on_done:
                 on_done(False)
             return
-        annotated = image.copy()
-        draw = ImageDraw.Draw(annotated)
+        original = Image.open(input_png).convert("RGB")
+        orig_w, orig_h = original.size
+        sx = orig_w / disp_w
+        sy = orig_h / disp_h
+        draw = ImageDraw.Draw(original)
         for x1, y1, x2, y2 in segments:
             draw.line(
-                [x1 / scale, y1 / scale, x2 / scale, y2 / scale],
+                [x1 * sx, y1 * sy, x2 * sx, y2 * sy],
                 fill=STROKE_COLOR,
                 width=STROKE_WIDTH,
                 joint="round",
             )
         output_png.parent.mkdir(parents=True, exist_ok=True)
-        annotated.save(output_png, format="PNG")
+        original.save(output_png, format="PNG")
         saved["ok"] = True
         root.destroy()
         if on_done:
