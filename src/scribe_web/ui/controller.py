@@ -8,7 +8,7 @@ from scribe_web.core.session import SessionContext, add_step, create_session
 from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root
 from scribe_web.core.utils import atomic_write_json
-from scribe_web.ui.annotator import annotate_image
+from scribe_web.ui.annotator import annotate_freehand
 
 
 class Controller:
@@ -44,11 +44,11 @@ class Controller:
         if self.ctx is None:
             raise RuntimeError("Session has not been started yet")
         step_id = self.next_step_id
-        screenshot_rel = f"steps/step_{step_id:03d}.png"
-        screenshot_abs = self.ctx.session_dir / screenshot_rel
-        capture_fullscreen_png(screenshot_abs)
-        step = build_step(step_id, "", "", "")
-        step["assets"]["screenshot"] = screenshot_rel
+        rel = f"steps/step_{step_id:03d}.png"
+        abs_path = self.ctx.session_dir / rel
+        capture_fullscreen_png(abs_path)
+        step = build_step(step_id, url="", title="", note="")
+        step["assets"]["screenshot"] = rel
         step["privacy"]["paused"] = self.paused
         add_step(self.ctx, step)
         self.next_step_id += 1
@@ -56,7 +56,7 @@ class Controller:
         self.logger.info(
             "ADD step: %s screenshot=%s paused=%s",
             step["id"],
-            screenshot_rel,
+            rel,
             self.paused,
         )
 
@@ -73,18 +73,18 @@ class Controller:
         if not screenshot_rel:
             self.logger.info("ANNOTATE step: ok=False screenshot=missing")
             return False
-        input_path = self.ctx.session_dir / screenshot_rel
-        output_rel = f"steps/step_{step['id']:03d}_annot.png"
-        output_abs = self.ctx.session_dir / output_rel
-        ok = annotate_image(input_path, output_abs)
+        input_abs = self.ctx.session_dir / screenshot_rel
+        out_rel = f"steps/step_{step['id']:03d}_annot.png"
+        out_abs = self.ctx.session_dir / out_rel
+        ok = annotate_freehand(input_abs, out_abs)
         if ok:
-            step["assets"]["annotated"] = output_rel
+            step["assets"]["annotated"] = out_rel
             atomic_write_json(self.ctx.payload_path, self.ctx.payload)
             self.last_action = "E"
             self.logger.info(
                 "ANNOTATE step: ok=True step=%s output=%s",
                 step["id"],
-                output_rel,
+                out_rel,
             )
         else:
             self.logger.info("ANNOTATE step: ok=False step=%s", step["id"])
