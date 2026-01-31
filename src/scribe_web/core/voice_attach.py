@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scribe_web.core.audio_recorder import record_wav
 from scribe_web.core.session import SessionContext
-from scribe_web.core.transcribe_whisper import transcribe_pl
 from scribe_web.core.utils import atomic_write_json
 
 
@@ -14,6 +12,9 @@ def _write_text(path: Path, text: str) -> None:
 
 
 def record_and_attach_to_last_step(ctx: SessionContext, seconds: int = 20) -> dict:
+    from scribe_web.core.audio_recorder import record_wav
+    from scribe_web.core.transcribe_whisper import transcribe_pl
+
     steps = ctx.payload.get("steps", [])
     if not steps:
         raise RuntimeError("Brak kroku. Najpierw zrób K.")
