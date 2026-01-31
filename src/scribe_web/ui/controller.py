@@ -12,6 +12,8 @@ from scribe_web.core.logging_setup import setup_logging
 from scribe_web.core.paths import ensure_dirs, logs_root
 from scribe_web.core.utils import atomic_write_json
 from scribe_web.core.voice_attach import record_and_attach_to_last_step
+from scribe_web.core.transcribe_runtime import transcribe_pl_optional
+from scribe_web.core.voice_runtime import VoiceState, start_recording, stop_and_save_wav
 from scribe_web.ui.annotator import annotate_freehand_blocking
 
 
@@ -23,6 +25,7 @@ class Controller:
         self.paused = False
         self.project_name: str | None = None
         self.last_action: str | None = None
+        self.voice_state = VoiceState()
         logs_dir = logs_root(config)
         ensure_dirs([logs_dir])
         self.logger = setup_logging(logs_dir / "scribe_web.log")
@@ -128,6 +131,67 @@ class Controller:
             result["wav"],
         )
         return result
+
+    def toggle_voice_last_step(self) -> dict:
+        if self.ctx is None:
+            raise RuntimeError("Brak kroku. Najpierw zrób K.")
+        steps = self.ctx.payload.get("steps", [])
+        if not steps:
+            raise RuntimeError("Brak kroku. Najpierw zrób K.")
+
+        step_id = steps[-1]["id"]
+        if not self.voice_state.recording:
+            self.voice_state.step_id = step_id
+            start_recording(self.voice_state)
+            self.last_action = "G"
+            self.logger.info("VOICE start: step=%s", step_id)
+            return {"recording": True, "step_id": step_id}
+
+        target_step_id = self.voice_state.step_id or step_id
+        step = next(
+            (item for item in steps if item.get("id") == target_step_id),
+            None,
+        )
+        if step is None:
+            raise RuntimeError("Brak kroku. Najpierw zrób K.")
+
+        wav_rel = f"transcripts/step_{target_step_id:03d}.wav"
+        raw_rel = f"transcripts/step_{target_step_id:03d}_raw.txt"
+        clean_rel = f"transcripts/step_{target_step_id:03d}_clean.txt"
+
+        out_wav_abs = self.ctx.session_dir / wav_rel
+        stop_and_save_wav(self.voice_state, out_wav_abs)
+
+        raw_text, clean_text = transcribe_pl_optional(out_wav_abs)
+        raw_abs = self.ctx.session_dir / raw_rel
+        raw_abs.parent.mkdir(parents=True, exist_ok=True)
+        raw_abs.write_text(raw_text, encoding="utf-8")
+
+        clean_abs = self.ctx.session_dir / clean_rel
+        clean_abs.parent.mkdir(parents=True, exist_ok=True)
+        clean_abs.write_text(clean_text, encoding="utf-8")
+
+        step_text = step.setdefault("text", {})
+        step_text["voice_transcript_raw"] = raw_rel
+        step_text["voice_transcript_clean"] = clean_rel
+        atomic_write_json(self.ctx.payload_path, self.ctx.payload)
+
+        self.voice_state.step_id = None
+        self.last_action = "G"
+        self.logger.info(
+            "VOICE stop: step=%s wav=%s transcribed=%s",
+            target_step_id,
+            wav_rel,
+            bool(raw_text or clean_text),
+        )
+        return {
+            "recording": False,
+            "step_id": target_step_id,
+            "wav": wav_rel,
+            "raw": raw_rel,
+            "clean": clean_rel,
+            "transcribed": bool(raw_text or clean_text),
+        }
 
     def add_step_screenshot_and_edit_and_voice(self, seconds: int = 20) -> bool:
         self.add_step_screenshot()

@@ -379,12 +379,25 @@ class PanelApp:
         )
 
     def on_voice(self):
-        self.controller.last_action = "G"
+        try:
+            result = self.controller.toggle_voice_last_step()
+        except RuntimeError as exc:
+            messagebox.showinfo("SCRIBE", str(exc))
+            return
+        except ModuleNotFoundError:
+            messagebox.showinfo("SCRIBE", "Zainstaluj zależności audio")
+            return
+        except Exception as exc:
+            messagebox.showinfo("SCRIBE", f"Błąd audio: {exc}")
+            return
         self._refresh_status()
-        self.root.after(10, self._show_voice_stub)
-
-    def _show_voice_stub(self):
-        messagebox.showinfo("SCRIBE", "STUB: audio+transkrypcja w Etap 5")
+        if result.get("recording"):
+            messagebox.showinfo("SCRIBE", "REC ON (kliknij G aby stop)")
+        else:
+            if result.get("transcribed"):
+                messagebox.showinfo("SCRIBE", "Zapisano transkrypcję")
+            else:
+                messagebox.showinfo("SCRIBE", "Zapisano audio, brak transkrypcji")
 
     def on_probe(self):
         self.controller.last_action = "P"
