@@ -190,18 +190,18 @@ class PanelApp:
         )
         entry.pack(fill=tk.X, padx=2, pady=2)
 
-        def on_ok(_event=None):
-            result["value"] = entry.get().strip()
+        def finish(val: str | None):
+            result["value"] = val
+            try:
+                dialog.grab_release()
+            except Exception:
+                pass
             dialog.destroy()
 
-        def on_cancel(_event=None):
-            result["value"] = None
-            dialog.destroy()
-
-        for target in (dialog, entry):
-            target.bind("<Return>", on_ok)
-            target.bind("<Escape>", on_cancel)
-        dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+        dialog.bind("<Escape>", lambda _e: finish(None))
+        entry.bind("<Escape>", lambda _e: finish(None))
+        entry.bind("<Return>", lambda _e: finish(entry.get().strip()))
+        dialog.bind("<Return>", lambda _e: finish(entry.get().strip()))
 
         dialog.update_idletasks()
         self.root.update_idletasks()
@@ -213,15 +213,18 @@ class PanelApp:
             y = self.root.winfo_y() + self.root.winfo_height() + 12
         dialog.geometry(f"{panel_w}x{height}+{x}+{y}")
 
-        entry.focus_force()
-        dialog.grab_set()
         try:
-            dialog.wait_window()
-        finally:
-            try:
-                dialog.grab_release()
-            except tk.TclError:
-                pass
+            dialog.transient(self.root)
+        except tk.TclError:
+            pass
+        dialog.attributes("-topmost", True)
+        dialog.grab_set()
+        entry.focus_force()
+        dialog.wait_window()
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+        self.root.after(50, lambda: (self.root.lift(), self.root.focus_force()))
         return result["value"]
 
     def _set_controls_started(self, started: bool):
@@ -286,7 +289,7 @@ class PanelApp:
         self.root.deiconify()
         self.root.lift()
         self.root.focus_force()
-        self.root.after(50, lambda: self.root.focus_force())
+        self.root.after(50, lambda: (self.root.lift(), self.root.focus_force()))
 
     def on_step(self):
         self.controller.add_step_screenshot_and_edit_and_voice(seconds=20)
